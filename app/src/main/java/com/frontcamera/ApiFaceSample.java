@@ -9,6 +9,7 @@ import com.baidu.aip.face.AipFace;
 import com.baidu.aip.face.FaceVerifyRequest;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ public class ApiFaceSample {
     private static final int PIC_ALIVE = 755;
     private static final int PIC_MATCH = 427;
     private static final int FACE_REGISTER = 800;
+    private static final int NET_ERROR = 955;
     //设置APPID/AK/SK
     public static final String APP_ID = SecretConfig.APP_ID;
     public static final String API_KEY = SecretConfig.API_KEY;
@@ -51,26 +53,25 @@ public class ApiFaceSample {
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
                 try {
-                    JSONObject json = (JSONObject)msg.obj;
+                    JSONObject json = (JSONObject) msg.obj;
                     switch (msg.what) {
                         case PIC_ALIVE:
 
                             int ret = json.getInt("error_code");
-                            if(ret == 0) {
+                            if (ret == 0) {
                                 double live_score = json.getJSONObject("result").getDouble("face_liveness");
-                                if(live_score > ALIVE_CHECK_THRESHOLD){
-                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context,"活体识别成功，人脸识别开门中……"  + Double.toString(live_score),Toast.LENGTH_SHORT);
+                                if (live_score > ALIVE_CHECK_THRESHOLD) {
+                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "活体识别成功，人脸识别开门中……" + Double.toString(live_score), Toast.LENGTH_SHORT);
                                     toast.setGravity(Gravity.CENTER, 0, 0);
                                     toast.show();
-                                    ApiFaceSample.getInstance().match(SurfaceViewCallback.getInstacne().mCurrentFrame64,"anon");
-                                }
-                                else{
-                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context,"活体识别失败，请再次尝试开门" + Double.toString(live_score),Toast.LENGTH_SHORT);
+                                    ApiFaceSample.getInstance().match(SurfaceViewCallback.getInstacne().mCurrentFrame64, "anon");
+                                } else {
+                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "活体识别失败，请再次尝试开门" + Double.toString(live_score), Toast.LENGTH_SHORT);
                                     toast.setGravity(Gravity.CENTER, 0, 0);
                                     toast.show();
                                 }
-                            }else {
-                                Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context,"活体识别失败，请再次尝试开门",Toast.LENGTH_SHORT);
+                            } else {
+                                Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "活体识别失败，请再次尝试开门", Toast.LENGTH_SHORT);
                                 toast.setGravity(Gravity.CENTER, 0, 0);
                                 toast.show();
                             }
@@ -78,25 +79,30 @@ public class ApiFaceSample {
                         case PIC_MATCH:
                             JSONArray jsonArray = json.getJSONObject("result").getJSONArray("user_list");
                             int size = jsonArray.length();
-                            if(size == 0){
-                                Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context,"人脸识别失败0，请再次尝试开门",Toast.LENGTH_SHORT);
+                            if (size == 0) {
+                                Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "人脸识别失败0，请再次尝试开门", Toast.LENGTH_SHORT);
                                 toast.setGravity(Gravity.CENTER, 0, 0);
                                 toast.show();
-                            }else{
-                                double score =  ((JSONObject)jsonArray.get(0)).getDouble("score");
-                                if(score > PASS_SCORE){
-                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context,"人脸识别成功，门已开",Toast.LENGTH_SHORT);
+                            } else {
+                                double score = ((JSONObject) jsonArray.get(0)).getDouble("score");
+                                if (score > PASS_SCORE) {
+                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "人脸识别成功，门已开", Toast.LENGTH_SHORT);
                                     toast.setGravity(Gravity.CENTER, 0, 0);
                                     toast.show();
-                                }else{
-                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context,"人脸识别失败1，请再次尝试开门" + Double.toString(score) ,Toast.LENGTH_SHORT);
+                                } else {
+                                    Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "人脸识别失败1，请再次尝试开门" + Double.toString(score), Toast.LENGTH_SHORT);
                                     toast.setGravity(Gravity.CENTER, 0, 0);
                                     toast.show();
                                 }
                             }
                             break;
+                        case NET_ERROR:
+                            Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "网络异常", Toast.LENGTH_SHORT);
+                            toast.setGravity(Gravity.CENTER, 0, 0);
+                            toast.show();
+                            break;
                     }
-                }catch (Exception e){
+                } catch (Exception e) {
 
                 }
             }
@@ -112,7 +118,7 @@ public class ApiFaceSample {
 
     public void faceverify(final String base64) {
 
-        new Thread(new Runnable(){
+        new Thread(new Runnable() {
             @Override
             public void run() {
                 String image = base64;
@@ -120,7 +126,19 @@ public class ApiFaceSample {
                 ArrayList<FaceVerifyRequest> list = new ArrayList<FaceVerifyRequest>();
                 list.add(req);
                 JSONObject res = mClient.faceverify(list);
-                System.out.println(res.toString());
+
+                try {
+                    if (res.getString("error_code") == "SDK108") {
+                        Message msg = Message.obtain();
+                        msg.what = NET_ERROR;
+                        msg.obj = res;
+                        mHandler.sendMessage(msg);
+                    }
+                    System.out.println(res.toString());
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
 
                 Message msg = Message.obtain();
                 msg.what = PIC_ALIVE;
@@ -129,10 +147,11 @@ public class ApiFaceSample {
             }
         }).start();
     }
-    public void register(final String base64, final String user_id){
+
+    public void register(final String base64, final String user_id) {
 
 
-        new Thread(new Runnable(){
+        new Thread(new Runnable() {
             @Override
             public void run() {
 
@@ -181,8 +200,8 @@ public class ApiFaceSample {
         }).start();
     }
 
-    public void match(final String base64, final String userId){
-        new Thread(new Runnable(){
+    public void match(final String base64, final String userId) {
+        new Thread(new Runnable() {
             @Override
             public void run() {
                 // 传入可选参数调用接口
