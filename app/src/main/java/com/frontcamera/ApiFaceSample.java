@@ -71,7 +71,7 @@ public class ApiFaceSample {
                                     toast.show();
                                 }
                             } else {
-                                Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "活体识别失败，请再次尝试开门", Toast.LENGTH_SHORT);
+                                Toast toast = Toast.makeText(SurfaceViewCallback.getInstacne().context, "活体识别失败，请再次尝试开门" +json.getString("error_msg") , Toast.LENGTH_SHORT);
                                 toast.setGravity(Gravity.CENTER, 0, 0);
                                 toast.show();
                             }
